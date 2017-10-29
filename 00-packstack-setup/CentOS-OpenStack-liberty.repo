@@ -1,0 +1,11 @@
+# CentOS-OpenStack-liberty.repo
+#
+# Please see http://wiki.centos.org/SpecialInterestGroup/Cloud for more
+# information
+
+[centos-openstack-liberty]
+name=CentOS-7 - OpenStack liberty
+baseurl=https://buildlogs.centos.org/centos/7/cloud/x86_64/openstack-liberty/
+gpgcheck=0
+enabled=1
+

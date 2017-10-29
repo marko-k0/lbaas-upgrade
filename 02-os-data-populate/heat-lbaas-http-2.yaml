@@ -1,0 +1,119 @@
+heat_template_version: 2015-10-15
+
+description: A Group of Load Balanced Servers
+
+parameters:
+
+  app_port:
+    type: number
+    default: 8080
+    description: Port used by the servers
+  flavor:
+    type: string
+    description: Flavor used for servers
+    default: m1.tiny
+    constraints:
+    - custom_constraint: nova.flavor
+  image:
+    type: string
+    description: Image used for servers
+    default: cirros
+    constraints:
+    - custom_constraint: glance.image
+  lb_port:
+    type: number
+    default: 8080
+    description: Port used by the load balancer
+  public_network:
+    type: string
+    description: Network used by the load balancer
+    default: public
+  subnet:
+    type: string
+    description: Subnet on which the load balancer will be located
+    default: public_subnet
+
+resources:
+
+  server1:
+    type: OS::Nova::Server
+    properties:
+      image: { get_param: image }
+      flavor: { get_param: flavor }
+      networks: [{ network: { get_param: public_network }}]
+      security_groups: [ allow_everything ]
+      user_data_format: RAW
+      user_data:
+        str_replace:
+          template: |
+            #! /bin/sh -v
+            Body=$(hostname)
+            Response="HTTP/1.1 200 OK\r\nContent-Length: ${#Body}\r\n\r\n$Body"
+            while true ; do echo -e $Response | nc -lp PORT; done
+          params:
+            PORT: { get_param: app_port }
+
+  pool_member1:
+    type: OS::Neutron::PoolMember
+    properties:
+      pool_id: { get_resource: pool }
+      address: { get_attr: [ server1, first_address ]}
+      protocol_port: { get_param: app_port }
+
+  server2:
+    type: OS::Nova::Server
+    properties:
+      image: { get_param: image }
+      flavor: { get_param: flavor }
+      networks: [{ network: { get_param: public_network }}]
+      security_groups: [ allow_everything ]
+      user_data_format: RAW
+      user_data:
+        str_replace:
+          template: |
+            #! /bin/sh -v
+            Body=$(hostname)
+            Response="HTTP/1.1 200 OK\r\nContent-Length: ${#Body}\r\n\r\n$Body"
+            while true ; do echo -e $Response | nc -lp PORT; done
+          params:
+            PORT: { get_param: app_port }
+
+  pool_member2:
+    type: OS::Neutron::PoolMember
+    properties:
+      pool_id: { get_resource: pool }
+      address: { get_attr: [ server2, first_address ]}
+      protocol_port: { get_param: app_port }
+
+  monitor:
+    type: OS::Neutron::HealthMonitor
+    properties:
+      delay: 3
+      type: HTTP
+      timeout: 3
+      max_retries: 3
+
+  pool:
+    type: OS::Neutron::Pool
+    properties:
+      name: http_pool
+      protocol: HTTP
+      subnet_id: { get_param: subnet }
+      lb_method: ROUND_ROBIN
+      monitors: [ { get_resource: monitor } ]
+      vip:
+        name: http_vip
+        description: HTTP VIP
+        protocol_port: { get_param: app_port }
+
+  loadbalancer:
+    type: OS::Neutron::LoadBalancer
+    properties:
+      pool_id: { get_resource: pool }
+      protocol_port: { get_param: app_port }
+
+outputs:
+
+  loadbalancer_vip:
+    value:
+      get_attr: [pool, vip, address]
