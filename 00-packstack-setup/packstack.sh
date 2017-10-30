@@ -19,3 +19,14 @@ yum install -y python-croniter
 systemctl restart openstack-heat-*
 
 #yum install -y htop iperf
+
+source ~/keystonerc_admin
+neutron net-create public --provider:network_type flat --provider:physical_network extnet  --router:external
+ip a add dev br-ex 192.168.122.1
+neutron subnet-create --name public_subnet --enable_dhcp=True --allocation-pool=start=192.168.122.10,end=192.168.122.20 --gateway=192.168.122.1 public 192.168.122.0/24
+curl http://download.cirros-cloud.net/0.3.4/cirros-0.3.4-x86_64-disk.img | glance image-create --name='cirros' --visibility=public --container-format=bare --disk-format=qcow2
+neutron router-create router1
+neutron router-gateway-set router1 public
+neutron net-create private
+neutron subnet-create --name private_subnet private 192.168.100.0/24
+neutron router-interface-add router1 private_subnet
