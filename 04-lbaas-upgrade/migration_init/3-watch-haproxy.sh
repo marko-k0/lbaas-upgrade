@@ -17,7 +17,7 @@ VERSION=""
 [ "$1" == "v2" ] && VERSION="v2/"
 
 #LBAAS_HOSTS=$(sudo mysql neutron -sNe 'select host from agents where `binary` = "neutron-lbaas-agent" and TIMESTAMPDIFF(SECOND, heartbeat_timestamp, NOw()) < 600' | awk 1 ORS=',')
-LBAAS_HOSTS=$(sudo mysql neutron -sNe 'select host from agents where `binary` = "neutron-lbaas-agent"' | awk 1 ORS=',')
+#LBAAS_HOSTS=$(sudo mysql neutron -sNe 'select host from agents where `binary` = "neutron-lbaas-agent"' | awk 1 ORS=',')
 
 while true; do
   if [ -z "$VERSION" ]; then
