@@ -21,11 +21,10 @@ cd 01-horizon-upgrade
 
 ### General POC
 
-General POC data (TCP/HTTP/HTTPS load balancers).
+General POC data (HTTP load balancers).
 
 ```bash
 cd 02-os-data-populate
-./os-init.sh
 ./os-create-stacks.sh
 ```
 
@@ -43,8 +42,11 @@ cd 03-heat-upgrade
 The core part!
 
 ```
-cd 04-lbaas-upgrades
-./lbaas-migration.sh
+cd 04-lbaas-upgrades/migration_init
+...
+
+cd 04-lbaas-upgrades/migration_steps
+...
 ```
 
 ## Test Cases
