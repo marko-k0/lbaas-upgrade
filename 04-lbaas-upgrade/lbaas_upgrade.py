@@ -327,6 +327,7 @@ class ResourceHandler(object):
         )
 
         def create_health_monitor(hm_obj):
+            print(" Creating health monitor res for {}".format(p_res.name))
             hm_res_values = dict()
             attr_name_lst = [
                 'created_at', 'updated_at', 'action', 'status',
@@ -350,12 +351,15 @@ class ResourceHandler(object):
             hm_res_values['properties_data_encrypted'] = 0
 
             hm_res_pd = dict()
-            # TODO: session persistance
             hm_res_pd["delay"] = hm_obj.delay
             hm_res_pd["type"] = hm_obj.type
             hm_res_pd["max_retries"] = hm_obj.max_retries
             hm_res_pd["timeout"] = hm_obj.timeout
-            hm_res_pd["pool"] = hm_obj.pool
+            hm_res_pd["pool"] = p_res.nova_instance
+            if hm_obj.type == 'HTTP' or hm_obj.type == 'HTTPS':
+                hm_res_pd['http_method'] = hm_obj.http_method
+                hm_res_pd['expected_codes'] = hm_obj.expected_codes
+                hm_res_pd['url_path'] = hm_obj.url_path
             hm_res_values['properties_data'] = hm_res_pd
 
             hm_res = Resource.create(hctxt(), hm_res_values)
@@ -369,20 +373,16 @@ class ResourceHandler(object):
 
         if 'monitors' in p_properties:
             p_obj = self.lbaasv2_data.get_pool(p_res.nova_instance)
+
             # this is the only used hm after the data migration
             active_hm_id = p_obj.healthmonitor_id
+            if not active_hm_id:
+                return
 
-            for mon in p_properties['monitors']:
-                if isinstance(mon, str):
-                    hm_obj = self.lbaasv2_data.get_health_monitor(
-                        p_obj.healthmonitor_id)
-                    if hm_obj.id == active_hm_id:
-                        create_health_monitor(hm_obj)
-                elif isinstance(mon, dict) and 'get_resource' in mon:
-                    hm_res_name = mon['get_resource']
-                    hm_res = self.res_dict['HealthMonitor'][hm_res_name]
-                    if hm_res.nova_instance != active_hm_id:
-                        delete_health_monitor(hm_res_name, hm_res)
+            hm_res_name = self.get_resource_name('HealthMonitor', active_hm_id)
+            if not hm_res_name:
+                hm_obj = self.lbaasv2_data.get_health_monitor(active_hm_id)
+                create_health_monitor(hm_obj)
 
     def _handle_no_lb_case(self, p_res):
         def respective_lb_res_exists():
@@ -563,7 +563,10 @@ class ResourceHandler(object):
                 res.update_and_save(
                     {'properties_data': res.properties_data})
 
-                if res_type == 'LoadBalancer':
+                if res_type == 'Pool':
+                    res.update_and_save(
+                        {'rsrc_metadata': {}})
+                elif res_type == 'LoadBalancer':
                     res.update_and_save(
                         {'nova_instance': self._lb_id[res_name]})
                 elif res_type == 'HealthMonitor' and not res.nova_instance:
@@ -571,12 +574,16 @@ class ResourceHandler(object):
                         {'nova_instance': None})
 
     def get_resource_prop_name(self, res_type, nova_instance):
+        if res_type not in self.res_dict:
+            return None
         for res_name, res in self.res_dict[res_type].items():
             if res.nova_instance == nova_instance:
                 return res.name
         return None
 
     def get_resource_name(self, res_type, nova_instance):
+        if res_type not in self.res_dict:
+            return None
         for res_name, res in self.res_dict[res_type].items():
             if res.nova_instance == nova_instance:
                 return res_name
@@ -628,7 +635,6 @@ class TemplateHandler(object):
             t_hm_res_p['type'] = hm_res_p['type']
             t_hm_res_p['max_retries'] = hm_res_p['max_retries']
             t_hm_res_p['timeout'] = hm_res_p['timeout']
-            #TODO: test again!
             t_hm_res_p['pool'] = {
                 'get_resource':
                 self.res_handler.get_resource_name(
@@ -636,6 +642,10 @@ class TemplateHandler(object):
                     hm_res_p['pool']
                 )
             }
+            if hm_res_p['type'] == 'HTTP' or hm_res_p['type'] == 'HTTPS':
+                t_hm_res_p['http_method'] = hm_res_p['http_method']
+                t_hm_res_p['expected_codes'] = hm_res_p['expected_codes']
+                t_hm_res_p['url_path'] = hm_res_p['url_path']
             self.resources[hm_res_name] = dict()
             self.resources[hm_res_name]['properties'] = t_hm_res_p
             self.resources[hm_res_name]['type'] = (
